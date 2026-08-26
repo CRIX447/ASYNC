@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
-import { MONSTER } from '../config/manifest.js';
+import { MONSTER, MONSTER_STEP_KEYS, MONSTER_ROAR_KEYS } from '../config/manifest.js';
 
 const PATROL = 'patrol';
 const CHASE  = 'chase';
@@ -40,6 +40,9 @@ export class Monster {
     this.searchTimer = 0;
     this.stepDistance = 0;
     this.active = true;
+
+    // Roar timers. It announces itself far more often once it's hunting.
+    this.roarTimer = 8 + Math.random() * 12;
 
     this.onCatch = () => {};
 
@@ -128,6 +131,7 @@ export class Monster {
     this.mixer?.update(dt);
 
     this.repathTimer -= dt;
+    this._updateRoar(dt, player);
 
     const canSee = this._canSee(player);
 
@@ -170,8 +174,10 @@ export class Monster {
   _enterChase(player) {
     if (this.state !== CHASE) {
       this.audio.play('monster_alert');
+      this._roar(1.0);              // it has seen you, and it wants you to know
       this.audio.startLoop('monster_chase');
       this._playAnim('run');
+      this.roarTimer = 5 + Math.random() * 4;
     }
     this.state = CHASE;
     this.speed = CHASE_SPEED;
@@ -283,11 +289,51 @@ export class Monster {
     const stride = this.state === CHASE ? 1.1 : 1.7;
     if (this.stepDistance >= stride) {
       this.stepDistance = 0;
-      this.audio.play('monster_step', { volumeScale: this._proximityVolume() });
+      this._step();
     }
   }
 
   // --------------------------------------------------------------------- audio
+
+  /** Random variant + slight pitch shift, so steps never sound looped. */
+  _step() {
+    const key = MONSTER_STEP_KEYS[Math.floor(Math.random() * MONSTER_STEP_KEYS.length)];
+    this.audio.play(key, {
+      volumeScale: this._proximityVolume(),
+      detune: (Math.random() - 0.5) * 0.14
+    });
+  }
+
+  /**
+   * Roars are the main thing that makes it feel alive when you can't see it.
+   * Pitched down and quiet at distance so you can roughly place it by ear.
+   */
+  _roar(volumeScale = null) {
+    const key = MONSTER_ROAR_KEYS[Math.floor(Math.random() * MONSTER_ROAR_KEYS.length)];
+    const v = volumeScale ?? Math.max(0.25, this._proximityVolume());
+    this.audio.play(key, {
+      volumeScale: v,
+      detune: -0.06 + (Math.random() - 0.5) * 0.1
+    });
+  }
+
+  _updateRoar(dt, player) {
+    this.roarTimer -= dt;
+    if (this.roarTimer > 0) return;
+
+    this._lastPlayerPos = player.position;
+    this._roar();
+
+    // Hunting: every 6-11s. Otherwise: every 14-30s.
+    this.roarTimer = this.state === CHASE
+      ? 6 + Math.random() * 5
+      : 14 + Math.random() * 16;
+  }
+
+  /** Called by the game at the moment of the catch. */
+  screamAtPlayer() {
+    this.audio.play('jumpscare_roar', { volumeScale: 1 });
+  }
 
   _updateAudio(player) {
     const v = this._proximityVolume(player);
