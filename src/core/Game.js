@@ -11,6 +11,7 @@ import { AudioManager } from '../systems/AudioManager.js';
 import { AmbientEvents } from '../systems/AmbientEvents.js';
 import { RemotePlayers } from '../net/RemotePlayers.js';
 import { createSession, setSessionSequence } from '../net/Session.js';
+import { SERVER_URL } from '../config/manifest.js';
 import { VoiceChat } from '../net/VoiceChat.js';
 import { VOICE } from '../config/manifest.js';
 import { HUD } from '../ui/HUD.js';
@@ -45,21 +46,20 @@ export class Game {
 
     this.flashlight = new Flashlight(this.camera);
     this.sanity = new Sanity(this.scene, this.camera, this.hud);
+    this.sanity.onLowSanity = (low) => {
+      if (low) this.audio.startLoop('heartbeat');
+      else this.audio.stopLoop('heartbeat');
+    };
     this.ambient = new AmbientEvents(this.audio);
 
     this.remotes = new RemotePlayers(this.scene, this.assets);
-    this.session = await createSession(LEVELS[0].sequence);
-    this.voice = new VoiceChat(this.session);
-    this.voice.onStatus = (s) => this.hud.setVoice(s);
-    this.hud.setVoice({ enabled: false });
-
-    this._wireSession();
     this._bindInput();
     this.hud.setLoadingProgress(1);
 
     this.hud.showStart({
       missingAssets: this.assets.missing.length,
-      onStart: () => this.start()
+      defaultServer: SERVER_URL,
+      onStart: (mode, url) => this.start(mode, url)
     });
 
     this._startMenuScene();
@@ -153,14 +153,14 @@ export class Game {
       if (!this.running) return;
       if (e.code === 'KeyF') this._toggleLight();
       if (e.code === 'KeyE') this._tryInteract();
-      if (e.code === VOICE.pushToTalkKey) {
+      if (e.code === VOICE.pushToTalkKey && this.voice) {
         if (!this.voice.enabled) this.voice.enable();
         else this.voice.setTalking(true);
       }
     });
 
     document.addEventListener('keyup', (e) => {
-      if (e.code === VOICE.pushToTalkKey) this.voice.setTalking(false);
+      if (e.code === VOICE.pushToTalkKey) this.voice?.setTalking(false);
     });
 
     this.renderer.domElement.addEventListener('click', () => {
@@ -230,7 +230,10 @@ export class Game {
 
     this.player.frozen = true;
     this.audio.play('jumpscare');
+    this.monster?.screamAtPlayer?.();
     this.audio.stopLoop('monster_chase');
+    this.audio.stopLoop('breathe');
+    this._wasExhausted = false;
     this.hud.fireJumpscare();
 
     // Snap the camera onto the thing's face. Cheap, and it works.
@@ -304,7 +307,21 @@ export class Game {
 
   // -------------------------------------------------------------- gameplay
 
-  start() {
+  /**
+   * Called from the menu. Returns false if 'online' was chosen and the server
+   * couldn't be reached, so the menu can stay up and report it.
+   */
+  async start(mode = 'solo', url = null) {
+    const session = await createSession(LEVELS[this.levelIndex].sequence, mode, url);
+    if (!session) return false;
+
+    this.session = session;
+    this.voice = new VoiceChat(session);
+    this.voice.onStatus = (s) => this.hud.setVoice(s);
+    this.hud.setVoice({ enabled: false });
+    this._wireSession();
+    setSessionSequence(session, LEVELS[this.levelIndex].sequence);
+
     this._menuActive = false;
     this.running = true;
 
@@ -318,6 +335,7 @@ export class Game {
     this.player.requestLock();
     this.clock.start();
     this._loop();
+    return true;
   }
 
   _updateLights(dt) {
@@ -353,6 +371,25 @@ export class Game {
     this._shakeAmount = amount;
   }
 
+  /**
+   * Heavy breathing while exhausted, and a one-off scuff when you squeeze
+   * into a crack. Both are edge-triggered so they don't retrigger every frame.
+   */
+  _updatePlayerAudio() {
+    const exhausted = this.player.exhausted;
+    if (exhausted !== this._wasExhausted) {
+      this._wasExhausted = exhausted;
+      if (exhausted) this.audio.startLoop('breathe');
+      else this.audio.stopLoop('breathe');
+    }
+
+    const hidden = this.player.isHidden;
+    if (hidden !== this._wasHidden) {
+      this._wasHidden = hidden;
+      if (hidden) this.audio.play('hide_in');
+    }
+  }
+
   _loop() {
     requestAnimationFrame(() => this._loop());
 
@@ -379,6 +416,7 @@ export class Game {
     this._checkExit();
 
     this.hud.setStamina(this.player.staminaPercent, this.player.exhausted);
+    this._updatePlayerAudio();
 
     // Hiding shows a different prompt than the generic look-at prompt.
     const target = this._raycastInteractable();
@@ -387,7 +425,7 @@ export class Game {
 
     this.session.sendMove({ ...this.player.getNetState(), light: this.flashlight.on }, dt);
     this.remotes.update(dt);
-    this.voice.updateProximity(this.player.position, this.remotes.avatars);
+    this.voice?.updateProximity(this.player.position, this.remotes.avatars);
 
     if (this._shakeAmount > 0.001) {
       this._shakeAmount *= Math.max(0, 1 - dt * 4);
