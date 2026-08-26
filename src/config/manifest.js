@@ -73,13 +73,26 @@ export const SOUNDS = {
   jump:      { url: 'assets/sounds/jump.mp3',      volume: 0.25, loop: false },
   land:      { url: 'assets/sounds/land.mp3',      volume: 0.3,  loop: false },
 
-  // monster
-  monster_idle:  { url: 'assets/sounds/monster_idle.mp3',  volume: 0.45, loop: true },
-  monster_step:  { url: 'assets/sounds/monster_step.mp3',  volume: 0.4,  loop: false },
-  monster_alert: { url: 'assets/sounds/monster_alert.mp3', volume: 0.7,  loop: false },
-  monster_chase: { url: 'assets/sounds/monster_chase.mp3', volume: 0.6,  loop: true },
-  monster_lost:  { url: 'assets/sounds/monster_lost.mp3',  volume: 0.5,  loop: false },
-  jumpscare:     { url: 'assets/sounds/jumpscare.mp3',     volume: 1.0,  loop: false },
+  // --- monster: breathing + movement ---------------------------------------
+  monster_idle:   { url: 'assets/sounds/monster_idle.mp3',   volume: 0.45, loop: true },
+  monster_chase:  { url: 'assets/sounds/monster_chase.mp3',  volume: 0.6,  loop: true },
+
+  // Footsteps. Three variants so it never sounds like a metronome.
+  monster_step_1: { url: 'assets/sounds/monster_step_1.mp3', volume: 0.5,  loop: false },
+  monster_step_2: { url: 'assets/sounds/monster_step_2.mp3', volume: 0.5,  loop: false },
+  monster_step_3: { url: 'assets/sounds/monster_step_3.mp3', volume: 0.5,  loop: false },
+
+  // Roars. Fired on a timer while hunting, and at the moment it spots you.
+  monster_roar_1: { url: 'assets/sounds/monster_roar_1.mp3', volume: 0.75, loop: false },
+  monster_roar_2: { url: 'assets/sounds/monster_roar_2.mp3', volume: 0.75, loop: false },
+  monster_roar_3: { url: 'assets/sounds/monster_roar_3.mp3', volume: 0.75, loop: false },
+
+  monster_alert:  { url: 'assets/sounds/monster_alert.mp3',  volume: 0.85, loop: false },
+  monster_lost:   { url: 'assets/sounds/monster_lost.mp3',   volume: 0.5,  loop: false },
+
+  // Jumpscare: the catch sting, plus a scream layered over it.
+  jumpscare:      { url: 'assets/sounds/jumpscare.mp3',      volume: 1.0,  loop: false },
+  jumpscare_roar: { url: 'assets/sounds/jumpscare_roar.mp3', volume: 1.0,  loop: false },
 
   // random distant events
   far_thump: { url: 'assets/sounds/far_thump.mp3', volume: 0.4,  loop: false },
@@ -89,6 +102,10 @@ export const SOUNDS = {
 };
 
 export const AMBIENT_EVENT_KEYS = ['far_thump', 'far_creak', 'far_voice', 'buzz_pop'];
+
+/** Picked at random so footsteps and roars never repeat predictably. */
+export const MONSTER_STEP_KEYS = ['monster_step_1', 'monster_step_2', 'monster_step_3'];
+export const MONSTER_ROAR_KEYS = ['monster_roar_1', 'monster_roar_2', 'monster_roar_3'];
 
 /** Voice chat rides on the same WebSocket used for multiplayer. */
 export const VOICE = {
