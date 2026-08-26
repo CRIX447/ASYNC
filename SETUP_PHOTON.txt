@@ -1,0 +1,46 @@
+ONE STEP LEFT BEFORE MULTIPLAYER WORKS
+======================================
+
+Your App ID is already in the project. Region is set to 'au' (Australia).
+
+You still need the Photon SDK file, because Photon's licence does not allow
+anyone to redistribute it. Two minutes:
+
+  1. Go to
+     https://www.photonengine.com/sdks#realtime-sdkrealtimejavascript
+
+  2. Download the Realtime JavaScript SDK (.zip)
+
+  3. Unzip. Open the  lib  folder inside.
+
+  4. Copy this ONE file:
+         Photon-Javascript_SDK.js
+     into:
+         public/vendor/
+
+  5. Delete the rest of the zip. You don't need it.
+
+Then:
+     npm install
+     npm run dev
+
+Click MULTIPLAYER, pick a room code, JOIN ROOM.
+Anyone who types the same code joins your session.
+
+Until you add that file, the Multiplayer tab will say:
+     SDK MISSING - SEE public/vendor/
+Singleplayer works fine without it.
+
+YOU DO NOT NEED A VOICE APP ID
+------------------------------
+Voice chat here is WebRTC peer-to-peer. Photon is only used to introduce
+players to each other. Audio goes directly between browsers, so it costs
+nothing and doesn't touch your Photon quota. Push-to-talk is V.
+
+ABOUT YOUR APP ID
+-----------------
+A Photon App ID is a client-side identifier -- it ships inside the browser
+bundle, so it is never truly secret and Photon is designed with that in mind.
+It does gate your free 20-concurrent-user quota, though. If you ever find
+strangers eating it, regenerate the App ID in the Photon dashboard and paste
+the new one into src/config/manifest.js.
