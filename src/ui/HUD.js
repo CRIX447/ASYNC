@@ -87,7 +87,11 @@ export class HUD {
     if (label) label.textContent = t >= 1 ? 'READY' : 'LOADING';
   }
 
-  showStart({ missingAssets = 0, onStart }) {
+  /**
+   * Main menu with SINGLEPLAYER / MULTIPLAYER tabs.
+   * onStart is called with ('solo') or ('online', serverUrl).
+   */
+  showStart({ missingAssets = 0, defaultServer = '', onStart }) {
     const o = this.el.overlay;
 
     o.innerHTML = `
@@ -96,41 +100,94 @@ export class HUD {
           <h1 data-text="A-SYNC">A-SYNC</h1>
         </div>
         <h2>THE THRESHOLD</h2>
-        <div class="rule"></div>
 
-        <p class="brief">
-          The exit is sealed behind three switches.<br>
-          Find them. Press them in the right order.<br>
-          Something else is down here with you.<br>
-          Crouch into the cracks in the walls. It can't reach you there.
-        </p>
-
-        <div class="controls">
-          <span><b class="key">W</b><b class="key">A</b><b class="key">S</b><b class="key">D</b> MOVE</span>
-          <span><b class="key">SHIFT</b> SPRINT</span>
-          <span><b class="key">CTRL</b> CROUCH</span>
-          <span><b class="key">SPACE</b> JUMP</span>
-          <span><b class="key">V</b> VOICE</span>
-          <span><b class="key">F</b> FLASHLIGHT</span>
-          <span><b class="key">E</b> INTERACT</span>
-          <span><b class="key">ESC</b> RELEASE MOUSE</span>
+        <div class="tabs">
+          <button class="tab active" data-tab="solo">SINGLEPLAYER</button>
+          <button class="tab" data-tab="online">MULTIPLAYER</button>
         </div>
 
-        <button id="start-btn"><span>ENTER</span></button>
+        <div class="panel active" data-panel="solo">
+          <p class="brief">
+            The exit is sealed behind three switches.<br>
+            Find them. Press them in the right order.<br>
+            Something else is down here with you.<br>
+            Crouch into the cracks in the walls. It can't reach you there.
+          </p>
 
-        ${
-          missingAssets
-            ? `<div class="footnote">${missingAssets} ASSET${
-                missingAssets === 1 ? '' : 'S'
-              } MISSING — USING PLACEHOLDERS</div>`
-            : ''
-        }
+          <div class="controls">
+            <span><b class="key">W</b><b class="key">A</b><b class="key">S</b><b class="key">D</b> MOVE</span>
+            <span><b class="key">SHIFT</b> SPRINT</span>
+            <span><b class="key">CTRL</b> CROUCH</span>
+            <span><b class="key">SPACE</b> JUMP</span>
+            <span><b class="key">F</b> FLASHLIGHT</span>
+            <span><b class="key">E</b> INTERACT</span>
+          </div>
+
+          <button class="btn" id="start-solo"><span>ENTER ALONE</span></button>
+          <div class="status">NO SERVER NEEDED</div>
+        </div>
+
+        <div class="panel" data-panel="online">
+          <p class="brief">
+            Same descent, but you can hear each other.<br>
+            Voice is push-to-talk on <b class="key">V</b> and fades with distance.
+          </p>
+
+          <div class="field">
+            <label>SERVER ADDRESS</label>
+            <input id="server-url" type="text" value="${defaultServer}" spellcheck="false" />
+          </div>
+
+          <button class="btn" id="start-online"><span>CONNECT</span></button>
+          <div class="status" id="net-status">RUN <b class="key">npm run server</b> FIRST</div>
+        </div>
+
+        ${missingAssets ? `<div class="footnote">${missingAssets} ASSET${missingAssets === 1 ? '' : 'S'} MISSING — USING PLACEHOLDERS</div>` : ''}
       </div>
     `;
 
-    document.getElementById('start-btn').addEventListener('click', () => {
+    // Tab switching.
+    const tabs = o.querySelectorAll('.tab');
+    const panels = o.querySelectorAll('.panel');
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        tabs.forEach((t) => t.classList.toggle('active', t === tab));
+        panels.forEach((pn) =>
+          pn.classList.toggle('active', pn.dataset.panel === tab.dataset.tab)
+        );
+      });
+    });
+
+    document.getElementById('start-solo').addEventListener('click', () => {
       o.classList.add('hidden');
-      onStart();
+      onStart('solo');
+    });
+
+    const online = document.getElementById('start-online');
+    const input = document.getElementById('server-url');
+    const status = document.getElementById('net-status');
+
+    online.addEventListener('click', async () => {
+      status.className = 'status';
+      status.textContent = 'CONNECTING…';
+      online.disabled = true;
+
+      const ok = await onStart('online', input.value.trim());
+
+      if (ok) {
+        o.classList.add('hidden');
+      } else {
+        // Stay on the menu and say why, rather than dumping them into a
+        // silently-offline game and letting them wonder where everyone is.
+        online.disabled = false;
+        status.className = 'status err';
+        status.textContent = 'COULD NOT REACH SERVER';
+      }
+    });
+
+    // Enter key in the address field connects.
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') online.click();
     });
   }
 
