@@ -113,7 +113,7 @@ export const MONSTER_ROAR_KEYS = ['monster_roar_1', 'monster_roar_2', 'monster_r
  * 1. Sign up free at https://dashboard.photonengine.com
  * 2. Create a new app, type "Realtime". Copy the App ID.
  * 3. Paste it below.
- * 4. Download the Photon JavaScript SDK, and copy the one library file into
+ * 4. Download the Photon Realtime JavaScript SDK and copy lib/photon.js into
  *    public/vendor/  (full instructions in public/vendor/README.txt)
  *
  * Free tier is 20 concurrent users, which is plenty for playtesting.
@@ -137,7 +137,12 @@ export const PHOTON = {
   defaultRoom: 'ASYNC',
   maxPlayers: 8,
 
-  sdkPath: 'vendor/Photon-Javascript_SDK.js'
+  // The loader tries these in order, so any of the SDK's library filenames work.
+  sdkPaths: [
+    'vendor/photon.js',
+    'vendor/photon.min.js',
+    'vendor/Photon-Javascript_SDK.js'
+  ]
 };
 
 /** Voice chat rides on whichever session is active. */
