@@ -66,9 +66,10 @@ export class LocalSession extends BaseSession {
 
 /** Online: the Node server is the authority, exactly like the Unreal version. */
 export class NetworkSession extends BaseSession {
-  constructor(sequenceLength) {
+  constructor(sequenceLength, url = null) {
     super();
     this.sequenceLength = sequenceLength;
+    this.url = url || SERVER_URL;
     this.online = false;
     this.id = null;
     this.players = new Map();
@@ -89,7 +90,7 @@ export class NetworkSession extends BaseSession {
       };
 
       try {
-        this.ws = new WebSocket(SERVER_URL);
+        this.ws = new WebSocket(this.url);
       } catch {
         return fail();
       }
@@ -231,10 +232,18 @@ export class NetworkSession extends BaseSession {
  * Try the server; fall back to offline play if it isn't there.
  * This means `npm run dev` alone gives you a working game.
  */
-export async function createSession(sequence) {
-  const net = new NetworkSession(sequence.length);
-  await net.connect();
-  if (net.online) return net;
+/**
+ * mode 'solo'   -> always LocalSession, never touches the network
+ * mode 'online' -> NetworkSession; returns null if the server can't be reached,
+ *                  so the menu can say so instead of silently dropping you
+ *                  into an empty offline game.
+ */
+export async function createSession(sequence, mode = 'solo', url = null) {
+  if (mode === 'online') {
+    const net = new NetworkSession(sequence.length, url);
+    await net.connect();
+    return net.online ? net : null;
+  }
 
   const local = new LocalSession(sequence);
   await local.connect();
