@@ -28,22 +28,40 @@ const EV_VOICE    = 8;
 
 let sdkPromise = null;
 
-/** Loads the Photon SDK from public/vendor/ once, on demand. */
+/**
+ * Loads the Photon SDK from public/vendor/ once, on demand.
+ *
+ * Photon has renamed this file across SDK versions (photon.js today,
+ * Photon-Javascript_SDK.js in older releases), so we try each candidate in
+ * turn rather than making you rename anything.
+ */
 function loadPhotonSDK() {
   if (window.Photon) return Promise.resolve(window.Photon);
   if (sdkPromise) return sdkPromise;
 
-  sdkPromise = new Promise((resolve, reject) => {
-    const el = document.createElement('script');
-    el.src = PHOTON.sdkPath;
-    el.onload = () =>
-      window.Photon
-        ? resolve(window.Photon)
-        : reject(new Error('Photon SDK loaded but window.Photon is undefined'));
-    el.onerror = () =>
-      reject(new Error(`Photon SDK not found at ${PHOTON.sdkPath}. See public/vendor/README.txt`));
-    document.head.appendChild(el);
-  });
+  const tryPath = (src) =>
+    new Promise((resolve, reject) => {
+      const el = document.createElement('script');
+      el.src = src;
+      el.onload = () => (window.Photon ? resolve(window.Photon) : reject(new Error('loaded, no window.Photon')));
+      el.onerror = () => reject(new Error(`not found: ${src}`));
+      document.head.appendChild(el);
+    });
+
+  sdkPromise = (async () => {
+    for (const path of PHOTON.sdkPaths) {
+      try {
+        const P = await tryPath(path);
+        console.info(`Photon SDK loaded from ${path}`);
+        return P;
+      } catch {
+        /* try the next filename */
+      }
+    }
+    throw new Error(
+      `Photon SDK not found. Put photon.js in public/vendor/ — see public/vendor/README.txt`
+    );
+  })();
 
   return sdkPromise;
 }
