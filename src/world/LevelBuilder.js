@@ -4,6 +4,31 @@ const WALL = '#';
 const VOID = ' ';
 
 /**
+ * Per-level lighting. Any level can override any of these in its `lighting`
+ * block, so the Lobby can be bright and airy while the Hub stays pitch black
+ * without touching a line of code.
+ */
+export const DEFAULT_LIGHTING = {
+  fogColor: 0x0a0a08,
+  fogDensity: 0.036,
+  skyColor: 0x07070a,
+
+  ambientColor: 0x312a18,
+  ambientIntensity: 0.55,
+
+  lightColor: 0xffe9b8,
+  lightIntensity: 9,
+  lightRange: 16,
+  panelIntensity: 2.4,
+
+  flicker: true,
+  flickerStrength: 1,
+
+  ceiling: true,
+  lightStyle: 'panel'   // 'panel' indoors, 'lamp' for streetlights
+};
+
+/**
  * Turns a level definition into scene geometry.
  *
  * Walls, floors and ceilings are InstancedMesh, so a large map is three draw
@@ -32,8 +57,11 @@ export class LevelBuilder {
       }
     });
 
+    const lighting = { ...DEFAULT_LIGHTING, ...(level.lighting || {}) };
+
     const result = {
       def: level,
+      lighting,
       name: level.name,
       cellSize: cs,
       wallHeight: wh,
@@ -81,7 +109,7 @@ export class LevelBuilder {
             break;
 
           case 'L':
-            result.lights.push(this._makeCeilingLight(center, wh, result.group));
+            result.lights.push(this._makeCeilingLight(center, wh, result.group, lighting));
             result.walkable.push([c, r]);
             break;
 
@@ -118,7 +146,7 @@ export class LevelBuilder {
     }
 
     this._buildWalls(wallCells, cs, wh, result.group, level);
-    this._buildFloorAndCeiling(floorCells, cs, wh, result.group, level);
+    this._buildFloorAndCeiling(floorCells, cs, wh, result.group, level, lighting);
     this._placeProps(level, result);
 
     this.scene.add(result.group);
@@ -271,7 +299,7 @@ export class LevelBuilder {
     parent.add(mesh);
   }
 
-  _buildFloorAndCeiling(cells, cs, wh, parent, level) {
+  _buildFloorAndCeiling(cells, cs, wh, parent, level, lighting) {
     if (!cells.length) return;
 
     const plane = new THREE.PlaneGeometry(cs, cs);
@@ -285,10 +313,16 @@ export class LevelBuilder {
       roughness: 0.95
     });
 
+    const wantCeiling = lighting.ceiling !== false;
+
     const floor = new THREE.InstancedMesh(plane, floorMat, cells.length);
-    const ceil = new THREE.InstancedMesh(plane.clone(), ceilMat, cells.length);
     floor.receiveShadow = true;
-    ceil.receiveShadow = true;
+
+    // Outdoor levels (the Suburbs) have open sky instead of a ceiling.
+    const ceil = wantCeiling
+      ? new THREE.InstancedMesh(plane.clone(), ceilMat, cells.length)
+      : null;
+    if (ceil) ceil.receiveShadow = true;
 
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion();
@@ -303,14 +337,20 @@ export class LevelBuilder {
       m.compose(pos.set(x, 0, z), q, s);
       floor.setMatrixAt(i, m);
 
-      q.setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0));
-      m.compose(pos.set(x, wh, z), q, s);
-      ceil.setMatrixAt(i, m);
+      if (ceil) {
+        q.setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0));
+        m.compose(pos.set(x, wh, z), q, s);
+        ceil.setMatrixAt(i, m);
+      }
     });
 
     floor.instanceMatrix.needsUpdate = true;
-    ceil.instanceMatrix.needsUpdate = true;
-    parent.add(floor, ceil);
+    parent.add(floor);
+
+    if (ceil) {
+      ceil.instanceMatrix.needsUpdate = true;
+      parent.add(ceil);
+    }
   }
 
   // ---------------------------------------------------------------- fixtures
@@ -358,26 +398,52 @@ export class LevelBuilder {
     result.interactables.push(hit);
   }
 
-  _makeCeilingLight(center, wh, parent) {
-    const panel = new THREE.Mesh(
-      new THREE.BoxGeometry(2.4, 0.06, 0.6),
-      new THREE.MeshStandardMaterial({
-        color: 0xfff4d0, emissive: 0xffeeb0, emissiveIntensity: 2.4, roughness: 0.4
-      })
-    );
-    panel.position.set(center.x, wh - 0.05, center.z);
+  _makeCeilingLight(center, wh, parent, cfg) {
+    const isLamp = cfg.lightStyle === 'lamp';
+
+    const glowMat = new THREE.MeshStandardMaterial({
+      color: 0xfff4d0,
+      emissive: cfg.lightColor,
+      emissiveIntensity: cfg.panelIntensity,
+      roughness: 0.4
+    });
+
+    let panel;
+    let lightY;
+
+    if (isLamp) {
+      // Streetlamp: a post with a glowing head, for outdoor levels.
+      const postMat = new THREE.MeshStandardMaterial({ color: 0x1c1c1f, roughness: 0.8, metalness: 0.4 });
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.13, wh * 0.82, 8), postMat);
+      post.position.set(center.x, wh * 0.41, center.z);
+      post.castShadow = true;
+      parent.add(post);
+
+      panel = new THREE.Mesh(new THREE.SphereGeometry(0.34, 14, 10), glowMat);
+      panel.position.set(center.x, wh * 0.86, center.z);
+      lightY = wh * 0.82;
+    } else {
+      panel = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.06, 0.6), glowMat);
+      panel.position.set(center.x, wh - 0.05, center.z);
+      lightY = wh - 0.35;
+    }
+
     parent.add(panel);
 
-    const light = new THREE.PointLight(0xffe9b8, 9, 16, 2);
-    light.position.set(center.x, wh - 0.35, center.z);
+    const light = new THREE.PointLight(cfg.lightColor, cfg.lightIntensity, cfg.lightRange, 2);
+    light.position.set(center.x, lightY, center.z);
     parent.add(light);
 
     return {
-      panel, light,
+      panel,
+      light,
       position: light.position.clone(),
       flickerPhase: Math.random() * 100,
       flickerRate: 0.4 + Math.random() * 2.2,
-      baseIntensity: 9
+      baseIntensity: cfg.lightIntensity,
+      basePanelIntensity: cfg.panelIntensity,
+      flicker: cfg.flicker !== false,
+      flickerStrength: cfg.flickerStrength ?? 1
     };
   }
 
