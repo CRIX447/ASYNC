@@ -86,7 +86,8 @@ export class Game {
 
     this.camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 200);
     this.scene.add(this.camera);
-    this.scene.add(new THREE.AmbientLight(0x312a18, 0.55));
+    this.ambient = new THREE.AmbientLight(0x312a18, 0.55);
+    this.scene.add(this.ambient);
   }
 
   // ------------------------------------------------------------ level loading
@@ -99,6 +100,8 @@ export class Game {
     this.monster?.dispose?.();
 
     this.level = this.builder.build(def);
+    this._applyLevelLighting(this.level.lighting);
+    this._applyLevelLighting(this.level.lighting);
 
     if (this.player) {
       this.player.level = this.level;
@@ -126,6 +129,36 @@ export class Game {
 
     this.sanity?.reset?.();
     this.caught = false;
+  }
+
+  /** Fog, sky and ambient are per-level, so each one can have its own mood. */
+  _applyLevelLighting(cfg) {
+    this.scene.background = new THREE.Color(cfg.skyColor);
+
+    if (!this.scene.fog) this.scene.fog = new THREE.FogExp2(cfg.fogColor, cfg.fogDensity);
+    this.scene.fog.color.setHex(cfg.fogColor);
+    this.scene.fog.density = cfg.fogDensity;
+
+    this.ambient.color.setHex(cfg.ambientColor);
+    this.ambient.intensity = cfg.ambientIntensity;
+
+    // Sanity thickens fog relative to this level's baseline, not a global one.
+    if (this.sanity) this.sanity.baseFogDensity = cfg.fogDensity;
+  }
+
+  /** Fog, sky and ambient are per-level. This is most of a level's identity. */
+  _applyLevelLighting(cfg) {
+    this.scene.background = new THREE.Color(cfg.skyColor);
+
+    if (!this.scene.fog) this.scene.fog = new THREE.FogExp2(cfg.fogColor, cfg.fogDensity);
+    this.scene.fog.color.setHex(cfg.fogColor);
+    this.scene.fog.density = cfg.fogDensity;
+
+    this.ambientLight.color.setHex(cfg.ambientColor);
+    this.ambientLight.intensity = cfg.ambientIntensity;
+
+    // Sanity thickens fog relative to the level's baseline, so it has to be told.
+    this.sanity?.setBaseFog?.(cfg.fogDensity);
   }
 
   _advanceLevel() {
@@ -352,13 +385,21 @@ export class Game {
       l.light.visible = active;
       if (!active) return;
 
+      // Some levels want steady light (the Suburbs' streetlamps don't stutter).
+      if (!l.flicker) {
+        l.light.intensity = l.baseIntensity;
+        return;
+      }
+
       l.flickerPhase += dt * l.flickerRate;
       const n = Math.sin(l.flickerPhase * 3.1) * Math.sin(l.flickerPhase * 7.7);
-      const dip = n < -0.72 ? 0.15 : 1;
-      const wobble = 0.94 + Math.sin(l.flickerPhase * 21) * 0.06;
+      const k = l.flickerStrength;
+
+      const dip = n < -0.72 ? 1 - 0.85 * k : 1;
+      const wobble = 1 - 0.06 * k + Math.sin(l.flickerPhase * 21) * 0.06 * k;
 
       l.light.intensity = l.baseIntensity * dip * wobble;
-      l.panel.material.emissiveIntensity = 2.4 * dip * wobble;
+      l.panel.material.emissiveIntensity = l.basePanelIntensity * dip * wobble;
     });
   }
 
