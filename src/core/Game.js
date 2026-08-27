@@ -86,8 +86,10 @@ export class Game {
 
     this.camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 200);
     this.scene.add(this.camera);
-    this.ambient = new THREE.AmbientLight(0x312a18, 0.55);
-    this.scene.add(this.ambient);
+    // Named ambientLight, not ambient -- `this.ambient` is the AmbientEvents
+    // system, and one of them was quietly overwriting the other.
+    this.ambientLight = new THREE.AmbientLight(0x312a18, 0.55);
+    this.scene.add(this.ambientLight);
   }
 
   // ------------------------------------------------------------ level loading
@@ -100,7 +102,6 @@ export class Game {
     this.monster?.dispose?.();
 
     this.level = this.builder.build(def);
-    this._applyLevelLighting(this.level.lighting);
     this._applyLevelLighting(this.level.lighting);
 
     if (this.player) {
@@ -129,21 +130,6 @@ export class Game {
 
     this.sanity?.reset?.();
     this.caught = false;
-  }
-
-  /** Fog, sky and ambient are per-level, so each one can have its own mood. */
-  _applyLevelLighting(cfg) {
-    this.scene.background = new THREE.Color(cfg.skyColor);
-
-    if (!this.scene.fog) this.scene.fog = new THREE.FogExp2(cfg.fogColor, cfg.fogDensity);
-    this.scene.fog.color.setHex(cfg.fogColor);
-    this.scene.fog.density = cfg.fogDensity;
-
-    this.ambient.color.setHex(cfg.ambientColor);
-    this.ambient.intensity = cfg.ambientIntensity;
-
-    // Sanity thickens fog relative to this level's baseline, not a global one.
-    if (this.sanity) this.sanity.baseFogDensity = cfg.fogDensity;
   }
 
   /** Fog, sky and ambient are per-level. This is most of a level's identity. */
