@@ -52,6 +52,11 @@ export class Sanity {
     }
   }
 
+  /** Levels have different baseline fog; sanity thickens relative to it. */
+  setBaseFog(density) {
+    this.baseFogDensity = density;
+  }
+
   reset() {
     this.value = 100;
     this.drift = 0;
