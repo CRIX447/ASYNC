@@ -18,7 +18,10 @@ const TICK_HZ = 15;
 const SEQUENCES = [
   [2, 3, 1], // 0 - The Lobby
   [3, 1, 2], // 1 - Habitat
-  [1, 3, 2]  // 2 - The Hub
+  [1, 3, 2], // 2 - The Hub
+  [1, 2, 3], // 3 - The Offices
+  [3, 2, 1], // 4 - The Hotel
+  [2, 1, 3]  // 5 - The Endless Suburbs
 ];
 
 const state = {
